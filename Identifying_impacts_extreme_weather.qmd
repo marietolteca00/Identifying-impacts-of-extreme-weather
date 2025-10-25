@@ -1,0 +1,63 @@
+---
+title: "Identifying_impacts_extreme_weather"
+format: html
+---
+
+## Learning outcomes
+
+This assignment will reinforce key concepts in geospatial analysis by practicing the following:
+
+-   **load vector/raster data**
+-   **simple raster operations**
+-   **simple vector operations**
+-   **spatial joins**
+
+## Background
+
+Climate change is increasing the frequency and intensity of extreme weather events, with devastating impacts. “In February 2021, the state of Texas suffered a major power crisis, which came about as a result of three severe winter storms sweeping across the United States on February 10–11, 13–17, and 15–20.”1 For more background, check out these engineering and political perspectives.
+
+In this assignment, you will identify the impacts of these series of extreme winter storms by estimating the number of homes in the Houston metropolitan area that lost power and investigate whether not these impacts were disproportionately felt.
+
+Your analysis will be based on remotely-sensed night lights data, acquired from the Visible Infrared Imaging Radiometer Suite (VIIRS) onboard the Suomi satellite. In particular, you will use the VNP46A1 to detect differences in night lights before and after the storm to identify areas that lost electric power.
+
+To determine the number of homes that lost power, you link (spatially join) these areas with OpenStreetMap data on buildings and roads.
+
+To investigate potential socioeconomic factors that influenced recovery, you will link your analysis with data from the US Census Bureau.
+
+# Import Libraries
+
+```{r}
+library(terra) # raster handling
+library(tidyverse)
+library(tmap) # map making
+library(kableExtra) # table formatting
+library(spData) # spatial data
+library(spDataLarge) # spatial data
+library(geodata) # spatial data
+```
+
+# Reading in Data
+
+```{r}
+
+```
+
+### Workflow outline
+To complete complete the tasks of this assignment, you will need to break your analysis into the following key steps:
+
+- find locations that experienced a blackout by creating a mask
+- exclude highways from analysis
+- identify homes that experienced blackouts by combining the locations of homes and blackouts
+- identify the census tracts likely impacted by blackout
+- Below is guidance and suggestions for each of these steps.
+
+*Tip*
+For improved computational efficiency and easier interoperability with sf, I recommend using the stars package for raster handling.
+
+
+### ** VIIRS NEEDS TO BE SCALED - LOOK AT DISCUSSION/SECTION 4
+
+## Create blackout mask
+- will be using NA
+- post processing
+- subtracting across 2021-02-07 and 2021-02-16
