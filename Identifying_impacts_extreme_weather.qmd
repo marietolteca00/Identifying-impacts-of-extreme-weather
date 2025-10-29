@@ -37,7 +37,7 @@ library(spData) # spatial data
 library(spDataLarge) # spatial data
 library(geodata) # spatial data
 library(here)
-library(stars)
+library(stars) # to read data in
 library(sf)
 ```
 
@@ -53,29 +53,84 @@ vnp_05 <- read_stars(here("data", "VNP46A1", "VNP46A1.A2021038.h08v05.001.202103
 vnp_06 <- read_stars(here("data", "VNP46A1", "VNP46A1.A2021038.h08v06.001.2021039064329.tif"))
 vnp_05_2 <- read_stars(here("data", "VNP46A1", "VNP46A1.A2021047.h08v05.001.2021048091106.tif"))
 vnp_06_2 <- read_stars(here("data", "VNP46A1", "VNP46A1.A2021047.h08v06.001.2021048091105.tif"))
+
 ```
 
 ### Workflow outline
 To complete complete the tasks of this assignment, you will need to break your analysis into the following key steps:
 
-- find locations that experienced a blackout by creating a mask
+- find locations that experienced a blackout by creating a mask *HINT: this will require creating a raster object for each day (2021-02-07 and 2021-02-16)*
+: Check CRS of VNP raster files, combine, find difference, into night light intensity caused by storm between dates of interest. 
+:
 - exclude highways from analysis
+: 
 - identify homes that experienced blackouts by combining the locations of homes and blackouts
 - identify the census tracts likely impacted by blackout
 - Below is guidance and suggestions for each of these steps.
 
 *Tip*
 For improved computational efficiency and easier interoperability with sf, I recommend using the stars package for raster handling.
+
+
+## Check CRS
 ```{r}
-tm_shape(buildings)+
-  tm_polygons('fclass')
+# Transform CRS
+texas <- st_transform(homes, crs = st_crs(texas))
+
+# Checking Extents:
+if(st_crs(vnp_05) == st_crs(vnp_06)){
+  print("Extents match")
+}  else{
+  print("extents do not match")
+}
+
+# Check Boundaries of Rasters
+st_bbox(vnp_05) #xmin= -100, xmax= 30, ymin= -90, ymax=40
+st_bbox(vnp_06) # -100   20  -90   30
+st_bbox(vnp_05_2) # -100   30  -90   40 
+st_bbox(vnp_06_2) # -100   20  -90   30 
+```
+## Creating Raster Objects
+```{r}
+# Combining Rasters
+vnp_combine <- c(vnp_05, vnp_06, along = 'x')
+vnp_combine2 <- c(vnp_05_2, vnp_06_2, along = 'x')
+
+
+# Mosaic by date: vnp files are separated by arguments.
+vnp_feb07 <- st_mosaic(vnp_05, vnp_06)
+vnp_feb16 <- st_mosaic(vnp_05_2, vnp_06_2)
+
+# Checking if bounding box are the same
+st_bbox(vnp_feb07)
+st_bbox(vnp_feb16)
+
+# Now you can compute change
+vnp_change <- (vnp_feb16) - (vnp_feb07)
+
+# Viewing shape of raster combined
+tm_shape(vnp_change) +
+  tm_raster()
+```
+## Reclassify the difference raster, assuming that any location that experienced a *drop of more than 200 nW cm-2sr-1* experienced a blackout
+```{r}
+# Creating a binary mask: 1 == blackout, 0 == no blackout
+blackout_mask <- (vnp_change < -200) * 1
+
+tm_shape(blackout_mask) +
+  tm_raster(palette = c("white", "black"),  # white = no blackout, black = blackout
+            title = "Blackout Mask" # Title of legend
+            ) +
+  tm_layout(legend.outside = TRUE) # position of legend
+```
+## Assign `NA` to *all locations* that experienced a drop of less than 200 nW cm-2sr-1 change
+```{r}
+# Mask non-blackout areas
+blackout_mask[vnp_change > -200] <- NA
+
+# Plot
+tm_shape(blackout_mask) +
+  tm_raster()
 
 ```
 
-
-### ** VIIRS NEEDS TO BE SCALED - LOOK AT DISCUSSION/SECTION 4
-
-## Create blackout mask
-- will be using NA
-- post processing
-- subtracting across 2021-02-07 and 2021-02-16
