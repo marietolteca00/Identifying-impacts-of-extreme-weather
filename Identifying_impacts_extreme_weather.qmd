@@ -1,5 +1,7 @@
 ---
 title: "Identifying_impacts_extreme_weather"
+author: "Marie Tolteca"
+date: 10/28/2025
 format: html
 ---
 
@@ -26,7 +28,7 @@ To investigate potential socioeconomic factors that influenced recovery, you wil
 
 # Import Libraries
 
-```{r}
+```{r, message = FALSE}
 library(terra) # raster handling
 library(tidyverse)
 library(tmap) # map making
@@ -34,12 +36,23 @@ library(kableExtra) # table formatting
 library(spData) # spatial data
 library(spDataLarge) # spatial data
 library(geodata) # spatial data
+library(here)
+library(stars)
+library(sf)
 ```
 
 # Reading in Data
-
 ```{r}
+texas <- st_read(here::here('data','ACS_2019_5YR_TRACT_48_TEXAS.gdb'),
+                 layer ='ACS_2019_5YR_TRACT_48_TEXAS' )
 
+homes <- st_read(here('data','gis_osm_buildings_a_free_1.gpkg'))
+roads <- st_read(here('data','gis_osm_roads_free_1.gpkg'))
+# Raster Data - 
+vnp_05 <- read_stars(here("data", "VNP46A1", "VNP46A1.A2021038.h08v05.001.2021039064328.tif"))
+vnp_06 <- read_stars(here("data", "VNP46A1", "VNP46A1.A2021038.h08v06.001.2021039064329.tif"))
+vnp_05_2 <- read_stars(here("data", "VNP46A1", "VNP46A1.A2021047.h08v05.001.2021048091106.tif"))
+vnp_06_2 <- read_stars(here("data", "VNP46A1", "VNP46A1.A2021047.h08v06.001.2021048091105.tif"))
 ```
 
 ### Workflow outline
@@ -53,6 +66,11 @@ To complete complete the tasks of this assignment, you will need to break your a
 
 *Tip*
 For improved computational efficiency and easier interoperability with sf, I recommend using the stars package for raster handling.
+```{r}
+tm_shape(buildings)+
+  tm_polygons('fclass')
+
+```
 
 
 ### ** VIIRS NEEDS TO BE SCALED - LOOK AT DISCUSSION/SECTION 4
