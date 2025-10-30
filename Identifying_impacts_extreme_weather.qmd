@@ -115,7 +115,7 @@ tm_shape(vnp_change) +
 ## Reclassify the difference raster, assuming that any location that experienced a *drop of more than 200 nW cm-2sr-1* experienced a blackout
 ```{r}
 # Creating a binary mask: 1 == blackout, 0 == no blackout
-blackout_mask <- (vnp_change < -200) * 1
+blackout_mask <- (vnp_change < 200) * 1
 
 tm_shape(blackout_mask) +
   tm_raster(palette = c("white", "black"),  # white = no blackout, black = blackout
