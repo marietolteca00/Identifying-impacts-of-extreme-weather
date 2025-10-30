@@ -92,21 +92,21 @@ st_bbox(vnp_06_2) # -100   20  -90   30
 ```
 ## Creating Raster Objects
 ```{r}
-# Combining Rasters
-vnp_combine <- c(vnp_05, vnp_06, along = 'x')
-vnp_combine2 <- c(vnp_05_2, vnp_06_2, along = 'x')
+# Combining Rasters: Using xmin and xmax
+vnp_feb07 <- c(vnp_05, vnp_06, along = 'x')
+vnp_feb16 <- c(vnp_05_2, vnp_06_2, along = 'x')
 
 
 # Mosaic by date: vnp files are separated by arguments.
-vnp_feb07 <- st_mosaic(vnp_05, vnp_06)
-vnp_feb16 <- st_mosaic(vnp_05_2, vnp_06_2)
+#vnp_feb07 <- st_mosaic(vnp_05, vnp_06)
+#vnp_feb16 <- st_mosaic(vnp_05_2, vnp_06_2)
 
 # Checking if bounding box are the same
 st_bbox(vnp_feb07)
 st_bbox(vnp_feb16)
 
 # Now you can compute change
-vnp_change <- (vnp_feb16) - (vnp_feb07)
+vnp_change <- (vnp_feb07) - (vnp_feb16)
 
 # Viewing shape of raster combined
 tm_shape(vnp_change) +
@@ -115,7 +115,9 @@ tm_shape(vnp_change) +
 ## Reclassify the difference raster, assuming that any location that experienced a *drop of more than 200 nW cm-2sr-1* experienced a blackout
 ```{r}
 # Creating a binary mask: 1 == blackout, 0 == no blackout
-blackout_mask <- (vnp_change < 200) * 1
+blackout_mask[vnp_change <= 200] <- NA
+diff_greater <- blackout_mask[vnp_change > 200]
+
 
 tm_shape(blackout_mask) +
   tm_raster(palette = c("white", "black"),  # white = no blackout, black = blackout
@@ -126,11 +128,8 @@ tm_shape(blackout_mask) +
 ## Assign `NA` to *all locations* that experienced a drop of less than 200 nW cm-2sr-1 change
 ```{r}
 # Mask non-blackout areas
-blackout_mask[vnp_change > -200] <- NA
+#diff_lower <- [vnp_change > 200]
 
-# Plot
-tm_shape(blackout_mask) +
-  tm_raster()
 
 ```
 
