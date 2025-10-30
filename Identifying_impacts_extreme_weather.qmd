@@ -49,10 +49,10 @@ texas <- st_read(here::here('data','ACS_2019_5YR_TRACT_48_TEXAS.gdb'),
 homes <- st_read(here('data','gis_osm_buildings_a_free_1.gpkg'))
 roads <- st_read(here('data','gis_osm_roads_free_1.gpkg'))
 # Raster Data - 
-vnp_05 <- read_stars(here("data", "VNP46A1", "VNP46A1.A2021038.h08v05.001.2021039064328.tif"))
-vnp_06 <- read_stars(here("data", "VNP46A1", "VNP46A1.A2021038.h08v06.001.2021039064329.tif"))
-vnp_05_2 <- read_stars(here("data", "VNP46A1", "VNP46A1.A2021047.h08v05.001.2021048091106.tif"))
-vnp_06_2 <- read_stars(here("data", "VNP46A1", "VNP46A1.A2021047.h08v06.001.2021048091105.tif"))
+vnp_05 <- rast(here("data", "VNP46A1", "VNP46A1.A2021038.h08v05.001.2021039064328.tif"))
+vnp_06 <- rast(here("data", "VNP46A1", "VNP46A1.A2021038.h08v06.001.2021039064329.tif"))
+vnp_05_2 <- rast(here("data", "VNP46A1", "VNP46A1.A2021047.h08v05.001.2021048091106.tif"))
+vnp_06_2 <- rast(here("data", "VNP46A1", "VNP46A1.A2021047.h08v06.001.2021048091105.tif"))
 
 ```
 
@@ -75,7 +75,9 @@ For improved computational efficiency and easier interoperability with sf, I rec
 ## Check CRS
 ```{r}
 # Transform CRS
-texas <- st_transform(homes, crs = st_crs(texas))
+# st_crs(texas)
+# st_crs(homes)
+#texas <- st_transform(homes, crs = st_crs(texas))
 
 # Checking Extents:
 if(st_crs(vnp_05) == st_crs(vnp_06)){
@@ -85,21 +87,16 @@ if(st_crs(vnp_05) == st_crs(vnp_06)){
 }
 
 # Check Boundaries of Rasters
-st_bbox(vnp_05) #xmin= -100, xmax= 30, ymin= -90, ymax=40
-st_bbox(vnp_06) # -100   20  -90   30
-st_bbox(vnp_05_2) # -100   30  -90   40 
-st_bbox(vnp_06_2) # -100   20  -90   30 
+# st_bbox(vnp_05) #xmin= -100, xmax= 30, ymin= -90, ymax=40
+# st_bbox(vnp_06) # -100   20  -90   30
+# st_bbox(vnp_05_2) # -100   30  -90   40 
+# st_bbox(vnp_06_2) # -100   20  -90   30 
 ```
 ## Creating Raster Objects
 ```{r}
 # Combining Rasters: Using xmin and xmax
-vnp_feb07 <- c(vnp_05, vnp_06, along = 'x')
-vnp_feb16 <- c(vnp_05_2, vnp_06_2, along = 'x')
-
-
-# Mosaic by date: vnp files are separated by arguments.
-#vnp_feb07 <- st_mosaic(vnp_05, vnp_06)
-#vnp_feb16 <- st_mosaic(vnp_05_2, vnp_06_2)
+vnp_feb07 <- merge(vnp_05, vnp_06)
+vnp_feb16 <- merge(vnp_05_2, vnp_06_2)
 
 # Checking if bounding box are the same
 st_bbox(vnp_feb07)
@@ -110,26 +107,25 @@ vnp_change <- (vnp_feb07) - (vnp_feb16)
 
 # Viewing shape of raster combined
 tm_shape(vnp_change) +
-  tm_raster()
+  tm_raster(col.legend = tm_legend(""))
+
 ```
 ## Reclassify the difference raster, assuming that any location that experienced a *drop of more than 200 nW cm-2sr-1* experienced a blackout
+- Assign `NA` to *all locations* that experienced a drop of less than 200 nW cm-2sr-1 change
+
 ```{r}
-# Creating a binary mask: 1 == blackout, 0 == no blackout
-blackout_mask[vnp_change <= 200] <- NA
-diff_greater <- blackout_mask[vnp_change > 200]
+# Define a reclassification matrix
+rcl_vnp <- matrix(c(-Inf, 200, 'NA', # values -Inf to 200 = 'NA'
+                    200, Inf, 1,  # values 200 to Inf = 1
+              ncol = 3, byrow = TRUE))
 
-
-tm_shape(blackout_mask) +
-  tm_raster(palette = c("white", "black"),  # white = no blackout, black = blackout
-            title = "Blackout Mask" # Title of legend
-            ) +
-  tm_layout(legend.outside = TRUE) # position of legend
+# Apply the matrix to reclassify the raster, making all cells 0 or 1 or 2
+blackout_mask <- classify(vnp_change, rcl = rcl_vnp)
 ```
-## Assign `NA` to *all locations* that experienced a drop of less than 200 nW cm-2sr-1 change
+
+
 ```{r}
-# Mask non-blackout areas
-#diff_lower <- [vnp_change > 200]
-#test
+
 
 ```
 
