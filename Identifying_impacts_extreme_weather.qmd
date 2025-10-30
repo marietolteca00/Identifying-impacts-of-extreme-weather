@@ -129,7 +129,7 @@ tm_shape(blackout_mask) +
 ```{r}
 # Mask non-blackout areas
 #diff_lower <- [vnp_change > 200]
-
+#test
 
 ```
 
