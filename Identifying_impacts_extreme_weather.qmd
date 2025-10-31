@@ -39,6 +39,7 @@ library(geodata) # spatial data
 library(here)
 library(stars) # to read data in
 library(sf)
+library(raster)
 ```
 
 # Reading in Data
@@ -47,7 +48,8 @@ texas <- st_read(here::here('data','ACS_2019_5YR_TRACT_48_TEXAS.gdb'),
                  layer ='ACS_2019_5YR_TRACT_48_TEXAS' )
 
 homes <- st_read(here('data','gis_osm_buildings_a_free_1.gpkg'))
-roads <- st_read(here('data','gis_osm_roads_free_1.gpkg'))
+roads <- st_read(here('data','gis_osm_roads_free_1.gpkg'),
+                 query = "SELECT * FROM gis_osm_roads_free_1 WHERE fclass='motorway'")
 # Raster Data - 
 vnp_05 <- rast(here("data", "VNP46A1", "VNP46A1.A2021038.h08v05.001.2021039064328.tif"))
 vnp_06 <- rast(here("data", "VNP46A1", "VNP46A1.A2021038.h08v06.001.2021039064329.tif"))
@@ -81,9 +83,9 @@ For improved computational efficiency and easier interoperability with sf, I rec
 
 # Checking Extents:
 if(st_crs(vnp_05) == st_crs(vnp_06)){
-  print("Extents match")
+  print("Extents match :)")
 }  else{
-  print("extents do not match")
+  print("extents do not match :(")
 }
 
 # Check Boundaries of Rasters
@@ -102,7 +104,7 @@ vnp_feb16 <- merge(vnp_05_2, vnp_06_2)
 st_bbox(vnp_feb07)
 st_bbox(vnp_feb16)
 
-# Now you can compute change
+# Computing the Difference
 vnp_change <- (vnp_feb07) - (vnp_feb16)
 
 # Viewing shape of raster combined
@@ -114,18 +116,77 @@ tm_shape(vnp_change) +
 - Assign `NA` to *all locations* that experienced a drop of less than 200 nW cm-2sr-1 change
 
 ```{r}
-# Define a reclassification matrix
-rcl_vnp <- matrix(c(-Inf, 200, 'NA', # values -Inf to 200 = 'NA'
-                    200, Inf, 1,  # values 200 to Inf = 1
-              ncol = 3, byrow = TRUE))
+# Define the reclassification matrix 
+rcl_vnp <- matrix(c(-Inf, 200, NA,   # values -Inf to 200 = NA
+                    200, Inf, 1),    # values 200 to Inf = 1
+                  ncol = 3, byrow = TRUE)
 
-# Apply the matrix to reclassify the raster, making all cells 0 or 1 or 2
-blackout_mask <- classify(vnp_change, rcl = rcl_vnp)
+# Apply the matrix using terra::classify
+reclassified <- terra::classify(vnp_change, rcl = rcl_vnp)
 ```
 
-
+##vectorize the blackout mask
+hint: use st_as_sf() to convert from a raster to a vector and fix any invalid geometries with st_make_valid()
 ```{r}
+blackout_vector <- st_as_stars(reclassified)%>% 
+  st_as_sf() %>% 
+  st_make_valid()
+```
+# Crop (spatially subset) the blackout mask to the Houston area as defined by the following coordinates:(-96.5, 29), (-96.5, 30.5), (-94.5, 30.5), (-94.5, 29)
+```{r}
+# Define bounding box coordinates
+blackout_houston_bounds <- c(xmin = -96.5, xmax = -94.5,
+                             ymin = 29, ymax = 30.5)
 
+# Creating bbox and assign CRS
+houston_bbox <- st_bbox(blackout_houston_bounds, crs = st_crs(vnp_feb07))
+
+# Convert bbox to an sf polygon
+houston_bbox_sf <- st_as_sfc(houston_bbox)
+
+# Crop the vectorized blackout map to Houston area
+blackout_houston <- st_intersection(blackout_vector, houston_bbox_sf)
+
+```
+```{r}
+## re-project the cropped blackout dataset to *EPSG:3083* (NAD83 / Texas Centric Albers Equal Area)?
+# Reprojecting vector to EPSG:3083
+blackout_houston_proj <- st_transform(blackout_houston, crs = 3083)
+# Checking CRS
+#st_crs(blackout_houston_proj)
+
+tm_shape(blackout_houston_proj) +
+  tm_polygons()
+```
+## Exclude highways from the cropped blackout mask
+- Highways may have experienced changes in their night light intensities that are unrelated to the storm. Therefore, you should excluded any locations within 200 meters of all highways in the Houston area.
+#identify areas within 200m of all highways - hint: you may need to use st_union
+```{r}
+# Combine highways
+highways <- st_union(roads)
+
+highway_200 <- st_buffer(roads, dist = 200)
+
+# Find areas that experienced blackouts that are further than 200m from a highway
+
+# Checking Extents:
+if(st_crs(blackout_houston_proj) == st_crs(highway_200)){
+  print("Extents match :)")
+}  else{
+  print("extents do not match :(")
+}
+
+#Transformation
+highway_200 <- st_transform(highway_200, st_crs(blackout_houston_proj))
+
+# Verifying extent
+if(st_crs(blackout_houston_proj) == st_crs(highways_200)){
+  print("Extents match :)")
+}  else{
+  print("extents do not match :(")
+}
+
+highway_blackouts <- st_difference(blackout_houston_proj,highway_200)
 
 ```
 
