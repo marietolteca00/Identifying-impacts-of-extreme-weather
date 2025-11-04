@@ -47,9 +47,14 @@ library(raster)
 texas <- st_read(here::here('data','ACS_2019_5YR_TRACT_48_TEXAS.gdb'),
                  layer ='ACS_2019_5YR_TRACT_48_TEXAS' )
 
-homes <- st_read(here('data','gis_osm_buildings_a_free_1.gpkg'))
+
+homes <- st_read(here('data','gis_osm_buildings_a_free_1.gpkg'), 
+                 query = "SELECT * FROM gis_osm_buildings_a_free_1 WHERE (type IS NULL AND name IS NULL)")
+
+
 roads <- st_read(here('data','gis_osm_roads_free_1.gpkg'),
                  query = "SELECT * FROM gis_osm_roads_free_1 WHERE fclass='motorway'")
+
 # Raster Data - 
 vnp_05 <- rast(here("data", "VNP46A1", "VNP46A1.A2021038.h08v05.001.2021039064328.tif"))
 vnp_06 <- rast(here("data", "VNP46A1", "VNP46A1.A2021038.h08v06.001.2021039064329.tif"))
@@ -123,6 +128,9 @@ rcl_vnp <- matrix(c(-Inf, 200, NA,   # values -Inf to 200 = NA
 
 # Apply the matrix using terra::classify
 reclassified <- terra::classify(vnp_change, rcl = rcl_vnp)
+
+reclassified_map <- tm_shape(reclassified)+
+  tm_raster()
 ```
 
 ##vectorize the blackout mask
@@ -148,6 +156,7 @@ houston_bbox_sf <- st_as_sfc(houston_bbox)
 blackout_houston <- st_intersection(blackout_vector, houston_bbox_sf)
 
 ```
+
 ```{r}
 ## re-project the cropped blackout dataset to *EPSG:3083* (NAD83 / Texas Centric Albers Equal Area)?
 # Reprojecting vector to EPSG:3083
@@ -162,31 +171,70 @@ tm_shape(blackout_houston_proj) +
 - Highways may have experienced changes in their night light intensities that are unrelated to the storm. Therefore, you should excluded any locations within 200 meters of all highways in the Houston area.
 #identify areas within 200m of all highways - hint: you may need to use st_union
 ```{r}
-# Combine highways
-highways <- st_union(roads)
-
-highway_200 <- st_buffer(roads, dist = 200)
-
-# Find areas that experienced blackouts that are further than 200m from a highway
-
 # Checking Extents:
-if(st_crs(blackout_houston_proj) == st_crs(highway_200)){
+if(st_crs(blackout_houston_proj) == st_crs(roads)){
+  print("Extents match :)")
+}  else{
+  print("extents do not match :(")
+}
+#Checking Units
+st_crs(roads, parameters = TRUE)$units_gdal # Degrees
+
+# Transform
+highway <- st_transform(roads, st_crs(blackout_houston_proj))
+
+#Checking Units
+st_crs(highway, parameters = TRUE)$units_gdal # Metres
+
+# Confirming Extents:
+if(st_crs(blackout_houston_proj) == st_crs(highway)){
   print("Extents match :)")
 }  else{
   print("extents do not match :(")
 }
 
-#Transformation
-highway_200 <- st_transform(highway_200, st_crs(blackout_houston_proj))
+# Creating buffer
+highway_200 <- st_buffer(highway, dist = 200) %>% 
+  st_union()
 
-# Verifying extent
-if(st_crs(blackout_houston_proj) == st_crs(highways_200)){
-  print("Extents match :)")
-}  else{
-  print("extents do not match :(")
-}
+# MAP
+tm_shape(blackout_houston_proj) +
+  tm_polygons(col = "black") +
+  tm_shape(highway_200) +
+  tm_borders(col = "hotpink")+
+  # FIX
+  tm_legend(title = "Highway Buffer of 200 (m)")
 
+
+```
+
+## Identify the number of homes likely impacted by blackouts
+
+## ALE HELP PLEASE !!!!
+
+- identify homes that overlap with areas that experienced blackouts
+```{r}
+# Difference in blackout houston project and highway buffer 200 m
 highway_blackouts <- st_difference(blackout_houston_proj,highway_200)
+
+# Checking CRS
+if(st_crs(highway_blackouts) == st_crs(homes)){
+  print("Extents match :)")
+}  else{
+  print("extents do not match :(")
+}
+#Transform
+buildings <- st_transform(homes, st_crs(highway_blackouts))
+
+# Verify CRS is matching
+if(st_crs(highway_blackouts) == st_crs(buildings)){
+  print("Extents match :)")
+}  else{
+  print("extents do not match :(")
+}
+
+# Overlaps
+building_overlap <- st_intersection(buildings, highway_blackouts)
 
 ```
 
