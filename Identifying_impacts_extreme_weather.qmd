@@ -39,10 +39,11 @@ library(geodata) # spatial data
 library(here)
 library(sf)
 library(raster)
+library(stars)
 ```
 
 # Importing in Data
-```{r}
+```{r, output=FALSE, message=FALSE}
 texas <- st_read(here::here('data','ACS_2019_5YR_TRACT_48_TEXAS.gdb'),
                  layer ='ACS_2019_5YR_TRACT_48_TEXAS' )
 
@@ -79,12 +80,7 @@ For improved computational efficiency and easier interoperability with sf, I rec
 
 
 ## Check CRS
-```{r}
-# Transform CRS
-# st_crs(texas)
-# st_crs(homes)
-#texas <- st_transform(homes, crs = st_crs(texas))
-
+```{r, message=FALSE}
 # Checking Extents:
 if(st_crs(vnp_05) == st_crs(vnp_06)){
   print("Extents match :)")
@@ -99,7 +95,7 @@ if(st_crs(vnp_05) == st_crs(vnp_06)){
 # st_bbox(vnp_06_2) # -100   20  -90   30 
 ```
 ## Creating Raster Objects
-```{r}
+```{r, message=FALSE, warning=FALSE}
 # Combining Rasters: Using xmin and xmax
 vnp_feb07 <- merge(vnp_05, vnp_06)
 vnp_feb16 <- merge(vnp_05_2, vnp_06_2)
@@ -108,21 +104,46 @@ vnp_feb16 <- merge(vnp_05_2, vnp_06_2)
 st_bbox(vnp_feb07)
 st_bbox(vnp_feb16)
 
+# Common color scale
+vnp_range <- range(c(values(vnp_feb07), values(vnp_feb16)), na.rm=TRUE)
+
+vnp_07 <- tm_shape(vnp_feb07) +
+  #tm_basemap(server="OpenStreetMap") +
+  tm_raster(palette="viridis", title = "Change in Light",style="cont", breaks=seq(vnp_range[1], vnp_range[2], length.out=10)) +
+  tm_title("Feb 07 (Before Storm)")
+
+vnp_16<- tm_shape(vnp_feb16) +
+  #tm_basemap(server="OpenStreetMap") +
+  tm_raster(palette="viridis", title= "Change in Light" ,style="cont", breaks=seq(vnp_range[1], vnp_range[2], length.out=10)) +
+  tm_title("Feb 16 (After Storm)")
+
+# Saving Images
+tmap_save(vnp_07,filename = here("images", "vnp_07.png"),width = 1200, height = 800, dpi = 300)
+
+tmap_save(vnp_16,filename = here("images", "vnp_16.png"),width = 1200, height = 800, dpi = 300)
+
+
 # Computing the Difference
 vnp_change <- (vnp_feb07) - (vnp_feb16)
 
 # Viewing shape of raster combined
-tm_shape(vnp_change) +
-    # Add OpenStreetMap as the basemap
-  tm_basemap(server = "OpenStreetMap") +
-  tm_raster(col.legend = tm_legend(""))+
-  tm_title("Difference Map")
+diff_vnp<- tm_shape(vnp_change) +
+  #tm_basemap(server="OpenStreetMap") +
+  tm_raster(palette="-RdBu", midpoint=0, title="Change") +
+  tm_title("Difference (Feb16-Feb07)")
+
+# Saving Image
+tmap_save(diff_vnp,filename = here("images", "vnp_difference.png"),width = 1200, height = 800, dpi = 300)
+
+# All 3 maps- Before and after
+tmap_arrange(vnp_07,vnp_16,diff_vnp)
 
 ```
+
 ## Reclassify the difference raster, assuming that any location that experienced a *drop of more than 200 nW cm-2sr-1* experienced a blackout
 - Assign `NA` to *all locations* that experienced a drop of less than 200 nW cm-2sr-1 change
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 # Define the reclassification matrix 
 rcl_vnp <- matrix(c(-Inf, 200, NA,   # values -Inf to 200 = NA
                     200, Inf, 1),    # values 200 to Inf = 1
@@ -130,9 +151,16 @@ rcl_vnp <- matrix(c(-Inf, 200, NA,   # values -Inf to 200 = NA
 
 # Apply the matrix using terra::classify
 reclassified <- terra::classify(vnp_change, rcl = rcl_vnp)
-
+# Assinging map to a variable
 reclassified_map <- tm_shape(reclassified)+
-  tm_raster()
+  tm_raster(palette="viridis", midpoint=0)+
+  tm_title("Reclassified Difference VNP")
+# Viewing map
+reclassified_map
+
+# Saving Map
+tmap_save(reclassified_map,filename = here("images", "reclassified_map.png"),width = 1200, height = 800, dpi = 300)
+
 ```
 
 ##vectorize the blackout mask
@@ -143,7 +171,7 @@ blackout_vector <- st_as_stars(reclassified)%>%
   st_make_valid()
 ```
 # Crop (spatially subset) the blackout mask to the Houston area as defined by the following coordinates:(-96.5, 29), (-96.5, 30.5), (-94.5, 30.5), (-94.5, 29)
-```{r}
+```{r, warning=FALSE}
 # Define bounding box coordinates
 blackout_houston_bounds <- c(xmin = -96.5, xmax = -94.5,
                              ymin = 29, ymax = 30.5)
@@ -166,7 +194,7 @@ blackout_houston_proj <- st_transform(blackout_houston, crs = 3083)
 # Checking CRS
 #st_crs(blackout_houston_proj)
 
-tm_shape(blackout_houston_proj) +
+blackout_houston <- tm_shape(blackout_houston_proj) +
     # Add OpenStreetMap as the basemap
   tm_basemap(server = "OpenStreetMap") +
   tm_polygons()+
@@ -178,11 +206,16 @@ tm_shape(blackout_houston_proj) +
     col = "gray30",
     title = "Locations"
   )
+# Viewing
+blackout_houston
+
+# Saving Map
+tmap_save(blackout_houston,filename = here("images", "blackout_houston_map.png"),width = 1200, height = 800, dpi = 300)
 ```
 ## Exclude highways from the cropped blackout mask
 - Highways may have experienced changes in their night light intensities that are unrelated to the storm. Therefore, you should excluded any locations within 200 meters of all highways in the Houston area.
 #identify areas within 200m of all highways - hint: you may need to use st_union
-```{r}
+```{r, message=FALSE}
 # Checking Extents:
 if(st_crs(blackout_houston_proj) == st_crs(roads)){
   print("Extents match :)")
@@ -214,7 +247,7 @@ highway_blackouts <- st_difference(blackout_houston_proj, highway_200)
 
 
 # MAP
-tm_basemap("OpenStreetMap") +
+highway200_buff <- tm_basemap("OpenStreetMap") +
   tm_shape(highway_blackouts) +
   tm_polygons(col = "gray30", border.col = NA, alpha = 0.6) +
   tm_shape(highway_200) +
@@ -227,11 +260,20 @@ tm_basemap("OpenStreetMap") +
     col = c("gray30", "deeppink"),
     title = "Legend"
   )
+# Viewing
+highway200_buff
+
+# Saving Map
+tmap_save(highway200_buff,filename = here("images", "highway200_buff.png"),width = 1200, height = 800, dpi = 300)
 
 ```
 
 ## Identify the number of homes likely impacted by blackouts
 - identify homes that overlap with areas that experienced blackouts
+
+
+
+
 ```{r, message=FALSE}
 # Transform homes to match CRS
 buildings <- st_transform(homes, st_crs(highway_blackouts))
@@ -246,12 +288,21 @@ if (st_crs(highway_blackouts) == st_crs(buildings)) {
 # homes that overlap with blackout areas
 building_overlaps <- st_intersects(buildings, highway_blackouts)
 
-# homes impacted (Boolean- TRUE/FALSE)
-impacted <- lengths(building_overlaps) > 0
 
-blackout_buildings <- buildings[impacted, ]
+if (st_crs(highway_blackouts) == st_crs(buildings)) {
+  print("CRS match :)")
+} else {
+  warning("CRS do not match ️:(")
+}
 
-# Count how many homes are impacted
+
+# Boolean TRUE/FALSE for homes impacted
+buildings$impacted <- lengths(building_overlaps) > 0
+
+# Subset homes that were affected
+blackout_buildings <- buildings[buildings$impacted, ]
+
+# How many homes are impacted
 impacted_count <- sum(buildings$impacted)
 print(paste("Number of homes likely impacted by blackouts:", impacted_count))
 
@@ -262,10 +313,10 @@ building_points <- st_centroid(buildings)
 blackout_buildings_points <- st_centroid(blackout_buildings)
 
 # MAP
-tm_shape(building_points) +
+building_impacted <- tm_shape(building_points) +
   # Add OpenStreetMap as the basemap
   tm_basemap(server = "OpenStreetMap") + 
-  tm_dots(col = "black", size = 0.05, alpha = 0.5,
+  tm_dots(col = "grey30", size = 0.05, alpha = 0.5,
           title = "Homes (Not Impacted)") +
 tm_shape(blackout_buildings_points) +
   tm_dots(col = "darkorchid", size = 0.05, alpha = 0.8,
@@ -274,23 +325,110 @@ tm_shape(blackout_buildings_points) +
             main.title.size = 1.2)+
 tm_add_legend(type = "symbol",
               labels = c("Not Impacted", "Impacted by Blackouts"),
-              col = c("black", "darkorchid"),
+              col = c("grey30", "darkorchid"),
               title = "Homes")
 
+# Viewing
+building_impacted
 
+# Saving Map
+tmap_save(building_impacted,filename = here("images", "building_impacted.png"),width = 1200, height = 800, dpi = 300)
 ```
 
 
-# SOCIOECONOMIC PART
-# Need geom and Icome layer
-
-```{r}
+# Socioeconomic Houston Texas 
+```{r, output = FALSE, echo=FALSE}
 # Viewing what is in the geodatabase
 st_layers(here::here('data','ACS_2019_5YR_TRACT_48_TEXAS.gdb'))
 
+# Read in geometry (tract boundaries)
+geometry_socio <- st_read(here('data','ACS_2019_5YR_TRACT_48_TEXAS.gdb'),
+                          layer = 'ACS_2019_5YR_TRACT_48_TEXAS')
+
+# Read in income data
+income <- st_read(here('data','ACS_2019_5YR_TRACT_48_TEXAS.gdb'),
+                  layer = 'X19_INCOME')
+
+# Join geometry with income attributes
+socioeconomic <- geometry_socio %>% 
+  left_join(income, by = c("GEOID_Data" = "GEOID"))
+
+# Check for missing values
+colSums(is.na(socioeconomic))
+
+# Reproject socioeconomic data to match blackout CRS
+socioeconomic_proj <- st_transform(socioeconomic, st_crs(highway_blackouts))
+
+# Identify tracts that intersect blackout areas
+tracts_blackout <- st_intersects(socioeconomic_proj, highway_blackouts)
+
+# Create a logical indicator for blackout exposure
+socioeconomic_proj$blackout <- lengths(tracts_blackout) > 0
+
+# Make a human-readable label for plotting
+socioeconomic_proj <- socioeconomic_proj %>%
+  # Creating new column
+  mutate(blackout_status = ifelse(blackout, "Affected by Blackout", "Not Affected"))
+```
+# Visual of sociaeconomic median
+```{r, warning=FALSE}
+# Boxplot comparing income distributions ---
+median_income <- ggplot(socioeconomic_proj, aes(x = blackout_status, y = B19013e1, fill = blackout_status)) +
+  geom_boxplot(width = 0.6, outlier.alpha = 0.4) +
+  scale_fill_manual(values = c("Affected" = "grey30", 
+                               "Not Affected" = "hotpink")) +
+  labs(
+    title = "Median Household Income for Census Tracts in Houston",
+    subtitle = "Comparing tracts affected and not affected by blackouts",
+    x = "",
+    y = "Median Household Income (USD)"
+  ) +
+  theme_light() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    axis.text.x = element_text(face = "bold"),
+    legend.position = "none"
+  )
+
+# Viewing
+median_income
+
+# Saving Map
+ggsave(filename = here("images", "median_income.png"), plot =median_income , width = 8, height = 6, dpi = 300)
+```
+
+## Income Summary Table
+```{r}
+income_summary <- socioeconomic_proj %>%
+  # Drop geometry for speed
+  st_drop_geometry() %>% 
+  # Group by blackout
+  group_by(blackout) %>%
+  # Grab median incomes- using metadata
+  summarize(
+    mean_income = mean(as.numeric(B19013e1), na.rm = TRUE),
+    median_income = median(as.numeric(B19013e1), na.rm = TRUE),
+    sd_income = sd(as.numeric(B19013e1), na.rm = TRUE),
+    n_tracts = n()
+  ) %>%
+  # Creating new column
+  mutate(blackout = ifelse(blackout, "Blackout", "No Blackout"))
+
+# Kable Extra
+income_summary %>%
+  kbl(
+    caption = "Summary Statistics: Median Household Income by Blackout Status",
+    col.names = c("Blackout Status", "Mean Income ($)", "Median Income ($)", "SD", "Number of Tracts"),
+    digits = 0
+  ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed")) %>%
+  column_spec(2:4, width = "3cm") %>%
+  add_header_above(c(" " = 1, "Income Summary" = 3, " " = 1))
 
 
 ```
+
 
 
 
