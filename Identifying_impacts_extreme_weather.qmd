@@ -1,5 +1,6 @@
 ---
-title: "Identifying_impacts_extreme_weather"
+title: "Houston Texas Environmental Impacts"
+subtitle: "Identifying Impacts of Extreme Weather"
 author: "Marie Tolteca"
 date: 11/10/2025
 format: html
@@ -8,7 +9,7 @@ format: html
 
 ```{r, message = FALSE}
 library(terra) # raster handling
-library(tidyverse)
+library(tidyverse) #for boxplot
 library(tmap) # map making
 library(kableExtra) # table formatting
 library(spData) # spatial data
@@ -18,7 +19,6 @@ library(here)
 library(sf)
 library(raster)
 library(stars)
-library(patchwork)
 ```
 
 #### Importing in Data
@@ -54,7 +54,7 @@ vnp_06_21 <- read_stars(here("data", "VNP46A1", "VNP46A1.A2021047.h08v06.001.202
 
 ```
 
-#### Creating Raster Objects
+#### Creating Raster Objects with Stars Package
 ```{r, message=FALSE, warning=FALSE}
 # Checking Extents:
 if(st_crs(vnp_05) == st_crs(vnp_06)){
@@ -88,7 +88,8 @@ vnp_16 <- plot(vnp_16_crop, main = "After Storm", key.pos = NULL)
 ggsave("vnp_07_before.png", plot = vnp_07, width = 8, height = 6, units = "in", dpi = 300)
 ggsave("vnp_16_after.png", plot = vnp_16, width = 8, height = 6, units = "in", dpi = 300)
 ```
-#### Using Terra Packages 
+#### Using Terra Packages- Combining Rasters
+- Checking boundaries, and computing difference between rasters
 ```{r}
 # Combining Rasters: Using xmin and xmax
 vnp_feb07 <- merge(vnp_05, vnp_06)
@@ -103,8 +104,6 @@ st_bbox(vnp_feb16)
 vnp_change <- (vnp_feb07) - (vnp_feb16) # Using Terra
 ```
 
-
-
 #### Reclassify the difference raster, assuming that any location that experienced a *drop of more than 200 nW cm-2sr-1* experienced a blackout
 ```{r, message=FALSE, warning=FALSE}
 # Define the reclassification matrix 
@@ -116,8 +115,9 @@ rcl_vnp <- matrix(c(-Inf, 200, NA,   # values -Inf to 200 = NA
 reclassified <- terra::classify(vnp_change, rcl = rcl_vnp)
 # Assinging map to a variable
 reclassified_map <- tm_shape(reclassified)+
-  tm_raster(palette="viridis", midpoint=0)+
-  tm_title("Reclassified Difference VNP")
+                    tm_raster()+
+                    tm_layout(main.title = "Reclassified Difference Between VNP's",
+                              main.title.size = 1)
 # Viewing map
 reclassified_map
 
@@ -127,7 +127,6 @@ tmap_save(reclassified_map,filename = here("images", "reclassified_map.png"),wid
 ```
 
 #### Vectorize the blackout mask
-hint: use st_as_sf() to convert from a raster to a vector and fix any invalid geometries with st_make_valid()
 ```{r}
 blackout_vector <- st_as_stars(reclassified)%>% 
   st_as_sf() %>% 
@@ -155,7 +154,7 @@ blackout_houston_proj <- st_transform(blackout_houston, crs = 3083)
 # Checking CRS
 #st_crs(blackout_houston_proj)
 
-blackout_houston <- tm_shape(blackout_houston_proj) +
+blackout_houston_map <- tm_shape(blackout_houston_proj) +
     # Add OpenStreetMap as the basemap
   tm_basemap(server = "OpenStreetMap") +
   tm_polygons()+
@@ -165,15 +164,15 @@ blackout_houston <- tm_shape(blackout_houston_proj) +
     type = "fill",
     labels = "Blackout Areas",
     col = "gray30",
-    title = "Locations"
-  ) +
-  tm_compass(position = "left", "bottom")+
-  tm_scale_bar(position = "left", "bottom")
+    title = "Locations")+
+    tm_compass(north = 0, position = c("left", "bottom")) 
+
+
 # Viewing
-blackout_houston
+blackout_houston_map
 
 # Saving Map
-tmap_save(blackout_houston,filename = here("images", "blackout_houston_map.png"),width = 1200, height = 800, dpi = 300)
+tmap_save(blackout_houston_map,filename = here("images", "blackout_houston_map.png"),width = 1200, height = 800, dpi = 300)
 ```
 
 #### Exclude highways from the cropped blackout mask and Identify areas within 200m of all highways - hint: you may need to use st_union
@@ -220,10 +219,9 @@ highway200_buff <- tm_basemap("OpenStreetMap") +
     type = "fill",
     labels = c("Blackout Area (Excluding Highways)", "Highways (200 m Buffer)"),
     col = c("gray30", "deeppink"),
-    title = "Legend"
-  )+
-  tm_compass(position = "left", "bottom")+
-  tm_scale_bar(position = "left", "bottom")
+    title = "Legend")+
+    tm_compass(north = 0, position = c("left", "bottom")) 
+
 # Viewing
 highway200_buff
 
@@ -287,8 +285,7 @@ tm_add_legend(type = "symbol",
               labels = c("Not Impacted", "Impacted by Blackouts"),
               col = c("grey30", "darkorchid"),
               title = "Homes")+
-  tm_compass(position = "left", "bottom")+
-  tm_scale_bar(position = "left", "bottom")
+    tm_compass(north = 0, position = c("left", "bottom")) 
 
 # Viewing
 building_impacted
@@ -298,7 +295,7 @@ tmap_save(building_impacted,filename = here("images", "building_impacted.png"),w
 ```
 
 
-#### Socioeconomic Houston Texas 
+## Socioeconomic Houston Texas 
 ```{r, output = FALSE, echo=FALSE}
 # Viewing what is in the geodatabase
 st_layers(here::here('data','ACS_2019_5YR_TRACT_48_TEXAS.gdb'))
