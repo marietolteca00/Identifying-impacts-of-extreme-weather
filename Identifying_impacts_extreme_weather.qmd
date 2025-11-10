@@ -1,32 +1,10 @@
 ---
 title: "Identifying_impacts_extreme_weather"
 author: "Marie Tolteca"
-date: 10/28/2025
+date: 11/10/2025
 format: html
 ---
-
-## Learning outcomes
-
-This assignment will reinforce key concepts in geospatial analysis by practicing the following:
-
--   **load vector/raster data**
--   **simple raster operations**
--   **simple vector operations**
--   **spatial joins**
-
-## Background
-
-Climate change is increasing the frequency and intensity of extreme weather events, with devastating impacts. “In February 2021, the state of Texas suffered a major power crisis, which came about as a result of three severe winter storms sweeping across the United States on February 10–11, 13–17, and 15–20.”1 For more background, check out these engineering and political perspectives.
-
-In this assignment, you will identify the impacts of these series of extreme winter storms by estimating the number of homes in the Houston metropolitan area that lost power and investigate whether not these impacts were disproportionately felt.
-
-Your analysis will be based on remotely-sensed night lights data, acquired from the Visible Infrared Imaging Radiometer Suite (VIIRS) onboard the Suomi satellite. In particular, you will use the VNP46A1 to detect differences in night lights before and after the storm to identify areas that lost electric power.
-
-To determine the number of homes that lost power, you link (spatially join) these areas with OpenStreetMap data on buildings and roads.
-
-To investigate potential socioeconomic factors that influenced recovery, you will link your analysis with data from the US Census Bureau.
-
-# Import Libraries
+#### Import Libraries
 
 ```{r, message = FALSE}
 library(terra) # raster handling
@@ -40,20 +18,27 @@ library(here)
 library(sf)
 library(raster)
 library(stars)
+library(patchwork)
 ```
 
-# Importing in Data
-```{r, output=FALSE, message=FALSE}
+#### Importing in Data
+```{r, message=FALSE, warning=FALSE, output = FALSE}
 texas <- st_read(here::here('data','ACS_2019_5YR_TRACT_48_TEXAS.gdb'),
-                 layer ='ACS_2019_5YR_TRACT_48_TEXAS' )
+                 layer ='ACS_2019_5YR_TRACT_48_TEXAS' ,
+                 # Adding to not show output message
+                 quiet = TRUE)
 
 
 homes <- st_read(here('data','gis_osm_buildings_a_free_1.gpkg'), 
-                 query = "SELECT * FROM gis_osm_buildings_a_free_1 WHERE (type IS NULL AND name IS NULL)")
+                 query = "SELECT * FROM gis_osm_buildings_a_free_1 WHERE (type IS NULL AND name IS NULL)",
+                # Adding to not show output message
+                 quiet = TRUE)
 
 
 roads <- st_read(here('data','gis_osm_roads_free_1.gpkg'),
-                 query = "SELECT * FROM gis_osm_roads_free_1 WHERE fclass='motorway'")
+                 query = "SELECT * FROM gis_osm_roads_free_1 WHERE fclass='motorway'",
+                # Adding to not show output message
+                 quiet = TRUE)
 
 # Raster Data - 
 vnp_05 <- rast(here("data", "VNP46A1", "VNP46A1.A2021038.h08v05.001.2021039064328.tif"))
@@ -61,26 +46,16 @@ vnp_06 <- rast(here("data", "VNP46A1", "VNP46A1.A2021038.h08v06.001.202103906432
 vnp_05_2 <- rast(here("data", "VNP46A1", "VNP46A1.A2021047.h08v05.001.2021048091106.tif"))
 vnp_06_2 <- rast(here("data", "VNP46A1", "VNP46A1.A2021047.h08v06.001.2021048091105.tif"))
 
+# Using Stars for before and after
+vnp_051 <- read_stars(here("data", "VNP46A1", "VNP46A1.A2021038.h08v05.001.2021039064328.tif"))
+vnp_061 <- read_stars(here("data", "VNP46A1", "VNP46A1.A2021038.h08v06.001.2021039064329.tif"))
+vnp_05_21 <- read_stars(here("data", "VNP46A1", "VNP46A1.A2021047.h08v05.001.2021048091106.tif"))
+vnp_06_21 <- read_stars(here("data", "VNP46A1", "VNP46A1.A2021047.h08v06.001.2021048091105.tif"))
+
 ```
 
-### Workflow outline
-To complete complete the tasks of this assignment, you will need to break your analysis into the following key steps:
-
-- find locations that experienced a blackout by creating a mask *HINT: this will require creating a raster object for each day (2021-02-07 and 2021-02-16)*
-: Check CRS of VNP raster files, combine, find difference, into night light intensity caused by storm between dates of interest. 
-:
-- exclude highways from analysis
-: 
-- identify homes that experienced blackouts by combining the locations of homes and blackouts
-- identify the census tracts likely impacted by blackout
-- Below is guidance and suggestions for each of these steps.
-
-*Tip*
-For improved computational efficiency and easier interoperability with sf, I recommend using the stars package for raster handling.
-
-
-## Check CRS
-```{r, message=FALSE}
+#### Creating Raster Objects
+```{r, message=FALSE, warning=FALSE}
 # Checking Extents:
 if(st_crs(vnp_05) == st_crs(vnp_06)){
   print("Extents match :)")
@@ -88,61 +63,49 @@ if(st_crs(vnp_05) == st_crs(vnp_06)){
   warning("extents do not match :(")
 }
 
-# Check Boundaries of Rasters
-# st_bbox(vnp_05) #xmin= -100, xmax= 30, ymin= -90, ymax=40
-# st_bbox(vnp_06) # -100   20  -90   30
-# st_bbox(vnp_05_2) # -100   30  -90   40 
-# st_bbox(vnp_06_2) # -100   20  -90   30 
+# Stars
+vnp_feb7<- st_mosaic(vnp_051,vnp_061)
+vnp_feb16 <- st_mosaic(vnp_05_21, vnp_06_21)
+
+#Cropping extent
+extent <- st_bbox(c(xmin = -96.5, # xmin
+                  ymin = 29, # ymin
+                  xmax = -94.5, # xmax
+                  ymax = 30.5),
+                  crs = st_crs(vnp_feb7))
+# Arranging plots- side by side
+par(mfrow = c(1, 2))
+
+#Cropped VNP
+vnp_7_crop <- st_crop(vnp_feb7, extent)
+
+vnp_16_crop <- st_crop(vnp_feb16, extent)
+
+vnp_07 <- plot(vnp_7_crop, main = "Before Storm", key.pos = NULL) 
+vnp_16 <- plot(vnp_16_crop, main = "After Storm", key.pos = NULL)
+
+# Saving Image
+ggsave("vnp_07_before.png", plot = vnp_07, width = 8, height = 6, units = "in", dpi = 300)
+ggsave("vnp_16_after.png", plot = vnp_16, width = 8, height = 6, units = "in", dpi = 300)
 ```
-## Creating Raster Objects
-```{r, message=FALSE, warning=FALSE}
+#### Using Terra Packages 
+```{r}
 # Combining Rasters: Using xmin and xmax
 vnp_feb07 <- merge(vnp_05, vnp_06)
 vnp_feb16 <- merge(vnp_05_2, vnp_06_2)
+
 
 # Checking if bounding box are the same
 st_bbox(vnp_feb07)
 st_bbox(vnp_feb16)
 
-# Common color scale
-vnp_range <- range(c(values(vnp_feb07), values(vnp_feb16)), na.rm=TRUE)
-
-vnp_07 <- tm_shape(vnp_feb07) +
-  #tm_basemap(server="OpenStreetMap") +
-  tm_raster(palette="viridis", title = "Change in Light",style="cont", breaks=seq(vnp_range[1], vnp_range[2], length.out=10)) +
-  tm_title("Feb 07 (Before Storm)")
-
-vnp_16<- tm_shape(vnp_feb16) +
-  #tm_basemap(server="OpenStreetMap") +
-  tm_raster(palette="viridis", title= "Change in Light" ,style="cont", breaks=seq(vnp_range[1], vnp_range[2], length.out=10)) +
-  tm_title("Feb 16 (After Storm)")
-
-# Saving Images
-tmap_save(vnp_07,filename = here("images", "vnp_07.png"),width = 1200, height = 800, dpi = 300)
-
-tmap_save(vnp_16,filename = here("images", "vnp_16.png"),width = 1200, height = 800, dpi = 300)
-
-
 # Computing the Difference
-vnp_change <- (vnp_feb07) - (vnp_feb16)
-
-# Viewing shape of raster combined
-diff_vnp<- tm_shape(vnp_change) +
-  #tm_basemap(server="OpenStreetMap") +
-  tm_raster(palette="-RdBu", midpoint=0, title="Change") +
-  tm_title("Difference (Feb16-Feb07)")
-
-# Saving Image
-tmap_save(diff_vnp,filename = here("images", "vnp_difference.png"),width = 1200, height = 800, dpi = 300)
-
-# All 3 maps- Before and after
-tmap_arrange(vnp_07,vnp_16,diff_vnp)
-
+vnp_change <- (vnp_feb07) - (vnp_feb16) # Using Terra
 ```
 
-## Reclassify the difference raster, assuming that any location that experienced a *drop of more than 200 nW cm-2sr-1* experienced a blackout
-- Assign `NA` to *all locations* that experienced a drop of less than 200 nW cm-2sr-1 change
 
+
+#### Reclassify the difference raster, assuming that any location that experienced a *drop of more than 200 nW cm-2sr-1* experienced a blackout
 ```{r, message=FALSE, warning=FALSE}
 # Define the reclassification matrix 
 rcl_vnp <- matrix(c(-Inf, 200, NA,   # values -Inf to 200 = NA
@@ -163,15 +126,16 @@ tmap_save(reclassified_map,filename = here("images", "reclassified_map.png"),wid
 
 ```
 
-##vectorize the blackout mask
+#### Vectorize the blackout mask
 hint: use st_as_sf() to convert from a raster to a vector and fix any invalid geometries with st_make_valid()
 ```{r}
 blackout_vector <- st_as_stars(reclassified)%>% 
   st_as_sf() %>% 
   st_make_valid()
 ```
-# Crop (spatially subset) the blackout mask to the Houston area as defined by the following coordinates:(-96.5, 29), (-96.5, 30.5), (-94.5, 30.5), (-94.5, 29)
-```{r, warning=FALSE}
+#### Crop(spatially subset) the blackout mask to the Houston area as defined by the following coordinates:
+(-96.5, 29), (-96.5, 30.5), (-94.5, 30.5), (-94.5, 29)
+```{r, warning=FALSE, message=FALSE}
 # Define bounding box coordinates
 blackout_houston_bounds <- c(xmin = -96.5, xmax = -94.5,
                              ymin = 29, ymax = 30.5)
@@ -185,12 +149,9 @@ houston_bbox_sf <- st_as_sfc(houston_bbox)
 # Crop the vectorized blackout map to Houston area
 blackout_houston <- st_intersection(blackout_vector, houston_bbox_sf)
 
-```
-
-```{r, message=FALSE}
-## re-project the cropped blackout dataset to *EPSG:3083* (NAD83 / Texas Centric Albers Equal Area)?
-# Reprojecting vector to EPSG:3083
+# Re-project the cropped blackout dataset to *EPSG:3083* (NAD83 / Texas Centric Albers Equal Area)?
 blackout_houston_proj <- st_transform(blackout_houston, crs = 3083)
+
 # Checking CRS
 #st_crs(blackout_houston_proj)
 
@@ -205,16 +166,17 @@ blackout_houston <- tm_shape(blackout_houston_proj) +
     labels = "Blackout Areas",
     col = "gray30",
     title = "Locations"
-  )
+  ) +
+  tm_compass(position = "left", "bottom")+
+  tm_scale_bar(position = "left", "bottom")
 # Viewing
 blackout_houston
 
 # Saving Map
 tmap_save(blackout_houston,filename = here("images", "blackout_houston_map.png"),width = 1200, height = 800, dpi = 300)
 ```
-## Exclude highways from the cropped blackout mask
-- Highways may have experienced changes in their night light intensities that are unrelated to the storm. Therefore, you should excluded any locations within 200 meters of all highways in the Houston area.
-#identify areas within 200m of all highways - hint: you may need to use st_union
+
+#### Exclude highways from the cropped blackout mask and Identify areas within 200m of all highways - hint: you may need to use st_union
 ```{r, message=FALSE}
 # Checking Extents:
 if(st_crs(blackout_houston_proj) == st_crs(roads)){
@@ -259,7 +221,9 @@ highway200_buff <- tm_basemap("OpenStreetMap") +
     labels = c("Blackout Area (Excluding Highways)", "Highways (200 m Buffer)"),
     col = c("gray30", "deeppink"),
     title = "Legend"
-  )
+  )+
+  tm_compass(position = "left", "bottom")+
+  tm_scale_bar(position = "left", "bottom")
 # Viewing
 highway200_buff
 
@@ -268,12 +232,8 @@ tmap_save(highway200_buff,filename = here("images", "highway200_buff.png"),width
 
 ```
 
-## Identify the number of homes likely impacted by blackouts
+#### Identify the number of homes likely impacted by blackouts
 - identify homes that overlap with areas that experienced blackouts
-
-
-
-
 ```{r, message=FALSE}
 # Transform homes to match CRS
 buildings <- st_transform(homes, st_crs(highway_blackouts))
@@ -326,7 +286,9 @@ tm_shape(blackout_buildings_points) +
 tm_add_legend(type = "symbol",
               labels = c("Not Impacted", "Impacted by Blackouts"),
               col = c("grey30", "darkorchid"),
-              title = "Homes")
+              title = "Homes")+
+  tm_compass(position = "left", "bottom")+
+  tm_scale_bar(position = "left", "bottom")
 
 # Viewing
 building_impacted
@@ -336,7 +298,7 @@ tmap_save(building_impacted,filename = here("images", "building_impacted.png"),w
 ```
 
 
-# Socioeconomic Houston Texas 
+#### Socioeconomic Houston Texas 
 ```{r, output = FALSE, echo=FALSE}
 # Viewing what is in the geodatabase
 st_layers(here::here('data','ACS_2019_5YR_TRACT_48_TEXAS.gdb'))
@@ -370,7 +332,7 @@ socioeconomic_proj <- socioeconomic_proj %>%
   # Creating new column
   mutate(blackout_status = ifelse(blackout, "Affected by Blackout", "Not Affected"))
 ```
-# Visual of sociaeconomic median
+#### Visual of sociaeconomic median
 ```{r, warning=FALSE}
 # Boxplot comparing income distributions ---
 median_income <- ggplot(socioeconomic_proj, aes(x = blackout_status, y = B19013e1, fill = blackout_status)) +
@@ -398,7 +360,7 @@ median_income
 ggsave(filename = here("images", "median_income.png"), plot =median_income , width = 8, height = 6, dpi = 300)
 ```
 
-## Income Summary Table
+#### Income Summary Table
 ```{r}
 income_summary <- socioeconomic_proj %>%
   # Drop geometry for speed
