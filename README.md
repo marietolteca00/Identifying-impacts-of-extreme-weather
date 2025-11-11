@@ -1,6 +1,6 @@
 # Houston Texas Extreme Weather Impacts
-Author: Marie Tolteca, Student at Bren School of Environmental Science and Management, Masters in Environmental Data Science
-Date 11/10/2025
+- Author: Marie Tolteca, Student at Bren School of Environmental Science and Management, Masters in Environmental Data Science
+- Date 11/10/2025
 
 **This project examines the impacts of the February 2021 Texas winter storms that caused widespread power outages across the state. Using VIIRS night light data (VNP46A1), the analysis identifies areas in the Houston metropolitan region that experienced blackouts by comparing light intensity before and after the storm. These areas are then spatially joined with OpenStreetMap building data to estimate the number of affected homes and with U.S. Census data to explore potential socioeconomic disparities in the blackout’s impacts.**
 
