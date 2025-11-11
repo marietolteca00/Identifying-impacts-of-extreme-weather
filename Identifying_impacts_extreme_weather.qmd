@@ -1,12 +1,11 @@
 ---
 title: "Houston Texas Environmental Impacts"
-subtitle: "Identifying Impacts of Extreme Weather"
+subtitle: "Winter Storm Event, Feburary 2021- Blackout"
 author: "Marie Tolteca"
 date: 11/10/2025
 format: html
 ---
 #### Import Libraries
-
 ```{r, message = FALSE}
 library(terra) # raster handling
 library(tidyverse) #for boxplot
@@ -21,25 +20,20 @@ library(raster)
 library(stars)
 ```
 
-#### Importing in Data
+#### Importing Data
 ```{r, message=FALSE, warning=FALSE, output = FALSE}
 texas <- st_read(here::here('data','ACS_2019_5YR_TRACT_48_TEXAS.gdb'),
                  layer ='ACS_2019_5YR_TRACT_48_TEXAS' ,
                  # Adding to not show output message
                  quiet = TRUE)
-
-
 homes <- st_read(here('data','gis_osm_buildings_a_free_1.gpkg'), 
                  query = "SELECT * FROM gis_osm_buildings_a_free_1 WHERE (type IS NULL AND name IS NULL)",
                 # Adding to not show output message
                  quiet = TRUE)
-
-
 roads <- st_read(here('data','gis_osm_roads_free_1.gpkg'),
                  query = "SELECT * FROM gis_osm_roads_free_1 WHERE fclass='motorway'",
                 # Adding to not show output message
                  quiet = TRUE)
-
 # Raster Data - 
 vnp_05 <- rast(here("data", "VNP46A1", "VNP46A1.A2021038.h08v05.001.2021039064328.tif"))
 vnp_06 <- rast(here("data", "VNP46A1", "VNP46A1.A2021038.h08v06.001.2021039064329.tif"))
@@ -85,8 +79,9 @@ vnp_07 <- plot(vnp_7_crop, main = "Before Storm", key.pos = NULL)
 vnp_16 <- plot(vnp_16_crop, main = "After Storm", key.pos = NULL)
 
 # Saving Image
-ggsave("vnp_07_before.png", plot = vnp_07, width = 8, height = 6, units = "in", dpi = 300)
-ggsave("vnp_16_after.png", plot = vnp_16, width = 8, height = 6, units = "in", dpi = 300)
+# filename = here("images", "median_income.png")
+ggsave(filename = here("images", "vnp_07_before.png"), plot = vnp_07, width = 8, height = 6, units = "in", dpi = 300)
+ggsave(filename = here("images", "vnp_16_after.png"), plot = vnp_16, width = 8, height = 6, units = "in", dpi = 300)
 ```
 #### Using Terra Packages- Combining Rasters
 - Checking boundaries, and computing difference between rasters
@@ -111,13 +106,19 @@ rcl_vnp <- matrix(c(-Inf, 200, NA,   # values -Inf to 200 = NA
                     200, Inf, 1),    # values 200 to Inf = 1
                   ncol = 3, byrow = TRUE)
 
-# Apply the matrix using terra::classify
+# Use classify function
 reclassified <- terra::classify(vnp_change, rcl = rcl_vnp)
 # Assinging map to a variable
-reclassified_map <- tm_shape(reclassified)+
-                    tm_raster()+
-                    tm_layout(main.title = "Reclassified Difference Between VNP's",
-                              main.title.size = 1)
+reclassified_map <- tm_shape(reclassified) +
+  tm_raster(
+    title = "Drop more than 200 nWcm⁻²sr⁻¹",
+    labels = c("Blackout")) +
+  tm_layout(
+    main.title = "Reclassified Difference Between VNP Tiles",
+    main.title.size = 1,
+    legend.title.size = 0.9,
+    legend.text.size = 0.8)
+
 # Viewing map
 reclassified_map
 
@@ -125,7 +126,6 @@ reclassified_map
 tmap_save(reclassified_map,filename = here("images", "reclassified_map.png"),width = 1200, height = 800, dpi = 300)
 
 ```
-
 #### Vectorize the blackout mask
 ```{r}
 blackout_vector <- st_as_stars(reclassified)%>% 
@@ -388,7 +388,7 @@ income_summary %>%
 
 ```
 
+#### Results and Limitations:
 
-
-
+When the Texas storm hit in February 2023, the analysis suggests that most areas experiencing blackouts were concentrated near major highways and in central Houston, where warehouses or industrial zones may be located. This pattern indicates that infrastructure and land use type could have influenced which areas lost power. One limitation of this study is that we did not distinguish buildings by usage (ex.residential vs. commercial). Including socioeconomic variables, such as poverty levels could provide a clearer understanding of which communities were most affected and whether vulnerable populations experienced disproportionate impacts.
 
