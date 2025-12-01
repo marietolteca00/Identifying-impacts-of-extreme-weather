@@ -45,7 +45,7 @@ output:
  #........................Workflow Outline........................
 ```
 #### Library Package Usage:
-**In this project, the following packages will be used. If the library needs to be installed use `install.packages()` to install libraries. Terra, tidyyverse, tmap, kableExtra, spData, spDataLarge, geodata, here, sf, raster, and stars.**
+**In this project, the following packages will be used. If the library needs to be installed use `install.packages()` to install libraries. Terra, tidyyverse, tmap, kableExtra, spData, spDataLarge, geodata, here, sf, raster, stars, ggspatial, and patchwork.**
 #### Identify blackout regions:
 -   **Combine VIIRS raster tiles for dates before and after the storm.**
 -   **Compute the difference in nightlight intensity.**

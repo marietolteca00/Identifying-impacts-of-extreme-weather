@@ -18,6 +18,8 @@ library(here)
 library(sf)
 library(raster)
 library(stars)
+library(ggspatial)  # For scale bar and north arrow
+library(patchwork)
 ```
 
 #### Importing Data
@@ -77,8 +79,35 @@ vnp_16_crop <- st_crop(vnp_feb16, extent)
 
 vnp_07 <- plot(vnp_7_crop, main = "Before Storm", key.pos = 1)
 
-
 vnp_16 <- plot(vnp_16_crop, main = "After Storm", key.pos = 1)
+
+
+# Plot 1: Before Storm - 
+p1 <- ggplot() +
+  geom_stars(data = vnp_7_crop) +
+  scale_fill_viridis_c(name = "Radiance", na.value = "transparent") +
+  annotation_scale(location = "bl", width_hint = 0.3) +  # Scale bar
+  annotation_north_arrow(location = "tr", 
+                         which_north = "true",
+                         style = north_arrow_fancy_orienteering) +  # North arrow
+  labs(title = "Before Storm") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+# Plot 2: After Storm
+p2 <- ggplot() +
+  geom_stars(data = vnp_16_crop) +
+  scale_fill_viridis_c(name = "Radiance", na.value = "transparent") +
+  annotation_scale(location = "bl", width_hint = 0.3) +
+  annotation_north_arrow(location = "tr",
+                         which_north = "true",
+                         style = north_arrow_fancy_orienteering) +
+  labs(title = "After Storm") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+# Combine plots side by side
+p1 + p2
 
 # Saving Image
 # filename = here("images", "median_income.png")
