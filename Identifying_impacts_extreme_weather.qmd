@@ -77,44 +77,63 @@ vnp_7_crop <- st_crop(vnp_feb7, extent)
 
 vnp_16_crop <- st_crop(vnp_feb16, extent)
 
-vnp_07 <- plot(vnp_7_crop, main = "Before Storm", key.pos = 1)
+#vnp_07 <- plot(vnp_7_crop, main = "Before Storm", key.pos = 1)
 
-vnp_16 <- plot(vnp_16_crop, main = "After Storm", key.pos = 1)
+#vnp_16 <- plot(vnp_16_crop, main = "After Storm", key.pos = 1)
 
 
 # Plot 1: Before Storm - 
 p1 <- ggplot() +
   geom_stars(data = vnp_7_crop) +
+  # Scale Color
   scale_fill_viridis_c(name = "Radiance", na.value = "transparent") +
-  annotation_scale(location = "bl", width_hint = 0.3) +  # Scale bar
+  # Scale bar
+  #annotation_scale(location = "bl", width_hint = 0.3) + 
+  # North Arrow
   annotation_north_arrow(location = "tr", 
                          which_north = "true",
                          style = north_arrow_fancy_orienteering) +  # North arrow
-  labs(title = "Before Storm") +
+  # Adding Title
+  labs(title = "Before Storm",
+       x = "Latidude",
+       y = "Longitude") +
   theme_minimal() +
-  theme(legend.position = "right")
+  theme(legend.position = "right", # Legend position
+        # Plot Position
+        plot.title = element_text(hjust = 0.5)) 
+        # Remove tick labels
+        #axis.text = element_blank(), 
+        # Remove tick marks
+        #axis.ticks = element_blank()) 
 
 # Plot 2: After Storm
 p2 <- ggplot() +
   geom_stars(data = vnp_16_crop) +
   scale_fill_viridis_c(name = "Radiance", na.value = "transparent") +
-  annotation_scale(location = "bl", width_hint = 0.3) +
   annotation_north_arrow(location = "tr",
                          which_north = "true",
                          style = north_arrow_fancy_orienteering) +
-  labs(title = "After Storm") +
+  labs(title = "After Storm",
+       x = "Latidude",
+       y = "Longitude") +
   theme_minimal() +
-  theme(legend.position = "right")
+  theme(legend.position = "right",
+        plot.title = element_text(hjust = 0.5),
+        axis.ticks = )     
 
 # Combine plots side by side
-p1 + p2
+patchwork <- (p1 + p2)
+patchwork + plot_annotation(title = "Houston Texas Blackout Due to Environmental Impact",
+                            subtitle = "Winter Storm Event, Feburary 2021 ") &
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+
 
 # Saving Image
 # filename = here("images", "median_income.png")
-ggsave(filename = here("images", "vnp_07_before.png"), plot = vnp_07, width = 8, height = 6, units = "in", dpi = 300)
-ggsave(filename = here("images", "vnp_16_after.png"), plot = vnp_16, width = 8, height = 6, units = "in", dpi = 300)
+ggsave(filename = here("images", "vnp_07_before.png"), plot = p1, width = 8, height = 6, units = "in", dpi = 300)
+ggsave(filename = here("images", "vnp_16_after.png"), plot = p2, width = 8, height = 6, units = "in", dpi = 300)
 ```
-
 
 #### Using Terra Packages- Combining Rasters
 - Checking boundaries, and computing difference between rasters
