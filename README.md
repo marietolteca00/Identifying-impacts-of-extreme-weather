@@ -1,3 +1,8 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
 # Houston Texas Extreme Weather Impacts
 - Author: Marie Tolteca, Student at Bren School of Environmental Science and Management, Masters in Environmental Data Science
 - Date 11/10/2025
@@ -35,9 +40,7 @@
 ```
 **When uploading data into RStudio, before pushing changes into Github,make sure to update the `.gitignore` to include `data` folder.**
 **My Data Reprository Structure:**
-
 <img width="463" height="471" alt="Screenshot 2025-11-10 at 8 00 58 PM" src="https://github.com/user-attachments/assets/41da3c5b-bdf5-453d-b956-f914ec2d7858" />
-
 ```         
  #........................Workflow Outline........................
 ```

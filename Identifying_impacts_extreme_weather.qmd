@@ -75,14 +75,18 @@ vnp_7_crop <- st_crop(vnp_feb7, extent)
 
 vnp_16_crop <- st_crop(vnp_feb16, extent)
 
-vnp_07 <- plot(vnp_7_crop, main = "Before Storm", key.pos = NULL) 
-vnp_16 <- plot(vnp_16_crop, main = "After Storm", key.pos = NULL)
+vnp_07 <- plot(vnp_7_crop, main = "Before Storm", key.pos = 1)
+
+
+vnp_16 <- plot(vnp_16_crop, main = "After Storm", key.pos = 1)
 
 # Saving Image
 # filename = here("images", "median_income.png")
 ggsave(filename = here("images", "vnp_07_before.png"), plot = vnp_07, width = 8, height = 6, units = "in", dpi = 300)
 ggsave(filename = here("images", "vnp_16_after.png"), plot = vnp_16, width = 8, height = 6, units = "in", dpi = 300)
 ```
+
+
 #### Using Terra Packages- Combining Rasters
 - Checking boundaries, and computing difference between rasters
 ```{r}
@@ -115,9 +119,15 @@ reclassified_map <- tm_shape(reclassified) +
     labels = c("Blackout")) +
   tm_layout(
     main.title = "Reclassified Difference Between VNP Tiles",
-    main.title.size = 1,
-    legend.title.size = 0.9,
-    legend.text.size = 0.8)
+    main.title.size = 0.5,
+    legend.title.size = 0.7,
+    legend.text.size = 0.6)+
+  tm_compass(north = 0,
+             position = c("left", "bottom"),
+             size = 0.8)+      # smaller size
+  tm_scale_bar(position = c("right","bottom"),
+               text.size = 0.4)  # smaller size
+
 
 # Viewing map
 reclassified_map
@@ -165,7 +175,8 @@ blackout_houston_map <- tm_shape(blackout_houston_proj) +
     labels = "Blackout Areas",
     col = "gray30",
     title = "Locations")+
-    tm_compass(north = 0, position = c("left", "bottom")) 
+    tm_compass(north = 0, position = c("left", "bottom"))+
+  tm_scale_bar(position = c("left","bottom"))
 
 
 # Viewing
@@ -220,7 +231,8 @@ highway200_buff <- tm_basemap("OpenStreetMap") +
     labels = c("Blackout Area (Excluding Highways)", "Highways (200 m Buffer)"),
     col = c("gray30", "deeppink"),
     title = "Legend")+
-    tm_compass(north = 0, position = c("left", "bottom")) 
+    tm_compass(north = 0, position = c("left", "bottom"))+
+  tm_scale_bar(position = c("left","bottom"))
 
 # Viewing
 highway200_buff
@@ -285,7 +297,9 @@ tm_add_legend(type = "symbol",
               labels = c("Not Impacted", "Impacted by Blackouts"),
               col = c("grey30", "darkorchid"),
               title = "Homes")+
-    tm_compass(north = 0, position = c("left", "bottom")) 
+    tm_compass(north = 0, position = c("left", "bottom"))+
+    tm_scale_bar(position = c("left","bottom"))
+
 
 # Viewing
 building_impacted
@@ -293,8 +307,6 @@ building_impacted
 # Saving Map
 tmap_save(building_impacted,filename = here("images", "building_impacted.png"),width = 1200, height = 800, dpi = 300)
 ```
-
-
 ## Socioeconomic Houston Texas 
 ```{r, output = FALSE, echo=FALSE}
 # Viewing what is in the geodatabase
@@ -321,34 +333,73 @@ socioeconomic_proj <- st_transform(socioeconomic, st_crs(highway_blackouts))
 # Identify tracts that intersect blackout areas
 tracts_blackout <- st_intersects(socioeconomic_proj, highway_blackouts)
 
-# Create a logical indicator for blackout exposure
-socioeconomic_proj$blackout <- lengths(tracts_blackout) > 0
-
 # Make a human-readable label for plotting
 socioeconomic_proj <- socioeconomic_proj %>%
-  # Creating new column
-  mutate(blackout_status = ifelse(blackout, "Affected by Blackout", "Not Affected"))
+  # Create a logical indicator for blackout exposure
+  mutate(blackout = lengths(tracts_blackout) > 0,
+         blackout_status = ifelse(blackout,
+                                  "Affected by Blackout",
+                                  "Not Affected"))
+# Filter to only those tracts that are affected
+affected_tracts <- socioeconomic_proj %>%
+  filter(blackout == TRUE)
 ```
+
+#### Houston Census Tracts Affect by Blackout
+```{r, message=FALSE}
+houston_census_blackout <- tm_basemap("OpenStreetMap") +
+  tm_shape(affected_tracts) +
+    tm_polygons(
+      col = "blackout_status",
+      palette = "grey48",   
+      title = "Power Loss",
+      labels = "Affected by Blackout") +
+  # Title
+  tm_layout(main.title = "Houston Census Tracts Affect by Blackout",
+            main.title.size = 1.2)+
+  tm_compass(north = 0, position = c("right", "top")) +
+    tm_scale_bar(position = c("right","bottom"))
+
+
+# View map
+houston_census_blackout
+# Save map
+tmap_save(houston_census_blackout,filename = here("images", "houston_census_blackout.png"),width = 1200, height = 800, dpi = 300)
+
+```
+
 #### Visual of sociaeconomic median
 ```{r, warning=FALSE}
 # Boxplot comparing income distributions ---
 median_income <- ggplot(socioeconomic_proj, aes(x = blackout_status, y = B19013e1, fill = blackout_status)) +
   geom_boxplot(width = 0.6, outlier.alpha = 0.4) +
-  scale_fill_manual(values = c("Affected" = "grey30", 
-                               "Not Affected" = "hotpink")) +
+  scale_fill_manual(
+    name = "Blackout Exposure",
+    values = c(
+      "Affected by Blackout" = "grey30",
+      "Not Affected" = "hotpink"
+    ),
+    labels = c(
+      "Affected by Blackout" = "Affected by Blackout",
+      "Not Affected" = "Not Affected"
+    )
+  ) +
+  
   labs(
     title = "Median Household Income for Census Tracts in Houston",
-    subtitle = "Comparing tracts affected and not affected by blackouts",
+    subtitle = "Comparing tracts affected and not affected by highway-adjacent blackouts",
     x = "",
-    y = "Median Household Income (USD)"
-  ) +
+    y = "Median Household Income (USD)") +
   theme_light() +
   theme(
     plot.title = element_text(face = "bold", hjust = 0.5),
     plot.subtitle = element_text(hjust = 0.5),
     axis.text.x = element_text(face = "bold"),
-    legend.position = "none"
-  )
+    # Removes legend
+    legend.position = "right",
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 10))
+
 
 # Viewing
 median_income
@@ -389,6 +440,4 @@ income_summary %>%
 ```
 
 #### Results and Limitations:
-
-When the Texas storm hit in February 2023, the analysis suggests that most areas experiencing blackouts were concentrated near major highways and in central Houston, where warehouses or industrial zones may be located. This pattern indicates that infrastructure and land use type could have influenced which areas lost power. One limitation of this study is that we did not distinguish buildings by usage (ex.residential vs. commercial). Including socioeconomic variables, such as poverty levels could provide a clearer understanding of which communities were most affected and whether vulnerable populations experienced disproportionate impacts.
-
+Blackout-affected census tracts in the Houston area had a somewhat higher mean ($72,095) and median ($61,188) family income than unaffected census tracts (mean $62,403; median $54,816), according to the boxplot and summary statistics. Areas losing power may have not simply been the lowest‐income neighbourhoods. Also infrastructure or land‐use factors (ex. industrial zones near highways) might rather explain the blackout pattern. A limitation is the omission of building use either residential or commercial and deeper socioeconomic controls such as poverty rate, income distribution, etc. Without these, we cannot be certain that socioeconomic vulnerability is the only factor contributing to unequal impact or recovery.
